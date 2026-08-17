@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>新传真题抽卡</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#f5efe6" />
   <style>
     :root {
       --bg:#f5efe6; --paper:#fffaf2; --ink:#241f1a; --muted:#7a6d60; --line:#eadfce;
@@ -40,7 +42,7 @@
       <main class="card-shell">
         <div class="toolbar"><button class="primary" id="randomBtn">随机抽题</button><button class="secondary" id="flipBtn">查看答案</button><button class="green" id="saveBtn">保存答案</button></div>
         <section class="card" id="card"><div class="card-inner"><div class="face front"><div><div class="meta" id="meta"></div><div class="qtext" id="questionText">准备开始</div><p class="hint">先根据题目口头回答，再翻面把你的答案记录下来。</p></div></div><div class="face back"><div><div class="meta" id="backMeta"></div><textarea id="answerBox" placeholder="在这里填写你的答案……"></textarea><div class="answer-empty" id="emptyTip">还没有填写答案</div></div></div></div></section>
-        <div class="bottom"><button class="secondary" id="prevBtn">上一题</button><button class="secondary" id="nextBtn">下一题</button><button class="secondary" id="exportBtn">导出答案</button><button class="secondary" id="importBtn">导入答案</button><button class="secondary" id="exportQuestionsBtn">导出新增题目</button><button class="secondary" id="importQuestionsBtn">导入题目</button><button class="danger" id="clearBtn">清空答案</button><input type="file" id="importFile" accept="application/json" hidden /><input type="file" id="importQuestionsFile" accept="application/json" hidden /></div>
+        <div class="bottom"><button class="secondary" id="prevBtn">上一题</button><button class="secondary" id="nextBtn">下一题</button><button class="secondary" id="exportBtn">导出答案</button><button class="secondary" id="exportMarkdownBtn">导出已答题目（Markdown）</button><button class="secondary" id="importBtn">导入答案</button><button class="secondary" id="exportQuestionsBtn">导出新增题目</button><button class="secondary" id="importQuestionsBtn">导入题目</button><button class="danger" id="clearBtn">清空答案</button><input type="file" id="importFile" accept="application/json" hidden /><input type="file" id="importQuestionsFile" accept="application/json" hidden /></div>
       </main>
     </div>
   </div>
@@ -98,6 +100,7 @@
     $('search').oninput=e=>{ query=e.target.value; currentIndex=0; pickFirst(); };
     $('prevBtn').onclick=()=>{ const fs=filtered(); if(!fs.length) return; currentIndex=(currentIndex-1+fs.length)%fs.length; show(fs[currentIndex]); }; $('nextBtn').onclick=()=>{ const fs=filtered(); if(!fs.length) return; currentIndex=(currentIndex+1)%fs.length; show(fs[currentIndex]); };
     $('exportBtn').onclick=()=>{ const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),answers},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='我的真题答案.json'; a.click(); URL.revokeObjectURL(a.href); };
+    $('exportMarkdownBtn').onclick=()=>{ const done=QUESTIONS.filter(q=>answers[q.id]); if(!done.length){ alert('目前还没有已填写答案的题目'); return; } const lines=['# 我的新传真题答案','','导出时间：'+new Date().toLocaleString(),'']; done.forEach((q,i)=>{ lines.push('## '+(i+1)+'. '+q.question,'',`- 类别：${q.category==='english'?'英语类':'中文类'}`,`- 来源：${q.source||'未注明'}`,`- 院校/专题：${q.context||'未注明'}`,'','### 我的答案','',answers[q.id],''); }); const blob=new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='我的已答真题.md'; a.click(); URL.revokeObjectURL(a.href); alert('已导出 '+done.length+' 道已答题目'); };
     $('importBtn').onclick=()=>{ $('importFile').value=''; $('importFile').click(); }; $('importFile').onchange=e=>{ const file=e.target.files[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ try{ const data=JSON.parse(r.result); const incoming=data.answers||data; let imported=0; Object.entries(incoming).forEach(([id,value])=>{ if(typeof value==='string' && value.trim()){ answers[id]=value; imported++; } }); localStorage.setItem(storeKey,JSON.stringify(answers)); setSaveState('已导入 '+imported+' 条答案'); renderAll(); alert('已导入 '+imported+' 条答案；如果题目编号不同，请先重新导入题目文件，再导入答案文件。'); }catch{ alert('文件格式不正确，无法导入'); } }; r.readAsText(file); };
     $('exportQuestionsBtn').onclick=()=>{ const blob=new Blob([JSON.stringify(customQuestions,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='我添加的题目.json'; a.click(); URL.revokeObjectURL(a.href); };
     $('importQuestionsBtn').onclick=()=>{ $('importQuestionsFile').value=''; $('importQuestionsFile').click(); }; $('importQuestionsFile').onchange=e=>{ const file=e.target.files[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ try{ const incoming=JSON.parse(r.result); const list=Array.isArray(incoming)?incoming:(incoming.questions||[]); let added=0, relinked=0; list.forEach(item=>{ const question=String(item.question||'').trim(); if(!question) return; const importedId=String(item.id||'').trim(); const existing=QUESTIONS.find(q=>q.question===question); if(existing){ if(importedId && existing.id!==importedId && !QUESTIONS.some(q=>String(q.id)===importedId)){ const oldId=existing.id; existing.id=importedId; if(answers[oldId]&&!answers[importedId]) answers[importedId]=answers[oldId]; delete answers[oldId]; if(existing.answer==null) existing.answer=''; relinked++; } return; } const id=importedId&&!QUESTIONS.some(q=>String(q.id)===importedId)?importedId:'custom-'+Date.now()+'-'+added; const q={id,category:item.category==='english'?'english':'chinese',question,source:item.source||'导入题目',page:item.page||'-',context:item.context||'手动添加',answer:item.answer||''}; customQuestions.push(q); QUESTIONS.push(q); added++; }); localStorage.setItem(customKey,JSON.stringify(customQuestions)); localStorage.setItem(storeKey,JSON.stringify(answers)); renderAll(); setSaveState('题目已导入'); alert('新增 '+added+' 道题，重新关联 '+relinked+' 道题'); }catch{ alert('题库文件格式不正确'); } }; r.readAsText(file); };
@@ -114,6 +117,9 @@
     $('cancelAdd').onclick=()=>{ $('addPanel').style.display='none'; };
     $('confirmAdd').onclick=()=>{ const question=$('newQuestion').value.trim(); const school=$('newSchool').value.trim()||'手动添加'; if(!question){ alert('请先填写题目内容'); return; } const q={id:'custom-'+Date.now(),category:$('newCategory').value,question,source:'手动添加',page:'-',context:school,answer:''}; customQuestions.push(q); localStorage.setItem(customKey,JSON.stringify(customQuestions)); QUESTIONS.push(q); cloudSaveQuestion(q); $('newQuestion').value=''; $('newSchool').value=''; $('addPanel').style.display='none'; category=q.category; mode='all'; current=q; renderAll(); show(q); setSaveState('题目已添加'); };
     randomPick();
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    }
   </script>
 </body>
 </html>
