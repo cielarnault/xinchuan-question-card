@@ -1,0 +1,10 @@
+{
+  "name": "新传真题抽卡",
+  "short_name": "真题抽卡",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5efe6",
+  "theme_color": "#f5efe6",
+  "lang": "zh-CN",
+  "description": "可离线使用的新闻传播考研面试真题卡片"
+}
